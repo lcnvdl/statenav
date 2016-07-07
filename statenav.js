@@ -4,12 +4,18 @@
 
         container: "body",
 
-        initialize: function (container) {
+        initialize: function (container, listen) {
             if (typeof container !== 'undefined') {
 				if(typeof container === 'string') {
 					container = $(container);
 				}
                 window.statenav.container = container;
+            }
+
+            if (listen) {
+                setInterval(function() {
+                    window.statenav.attachElements();
+                }, typeof listen === 'number' ? listen : 1000);
             }
         },
 		
@@ -17,20 +23,25 @@
 			var sn = window.statenav;
 
             $("a.statenav,a.pjax").each(function() {
-				var e = $(this);
+                var e = $(this);
+                if (e.data("statenav"))
+                    return;
+                e.data("statenav", true);
 				e.click(function(ev) {
 					ev.preventDefault();
 
 					var b = $(this),
 						link = b.attr("href");
-					history.pushState(link, "", link);
-
-					window.statenav.nav(link);
+					window.statenav.nav(link, true);
 				});
 			});
 		},
 
-        nav: function(link) {
+		nav: function (link, push) {
+            if (push) {
+                history.pushState(link, "", link);
+            }
+
             window.statenav.container.trigger("sn-start-load");
             $.ajax({
                 url: link,
