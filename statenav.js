@@ -1,10 +1,38 @@
 ﻿(function ($) {
 
+    if (window.statenav)
+        return;
+
+    var initialPop = true;
+    var initialState = window.history.state;
+
     window.statenav = {
+
+        xhr: null,
+        state: null,
+        args: null,
 
         container: "body",
 
         initialize: function (container, listen) {
+
+            // Initialize statenav.state if possible
+            // Happens when reloading a page and coming forward from a different
+            // session history.
+            if (initialState && initialState.container) {
+                window.statenav.state = initialState;
+            } else {
+                var link = document.location+"";
+                history.replaceState(link, "", link);
+            }
+
+            // Non-webkit browsers don't fire an initial popstate event
+            if ('state' in window.history) {
+                initialPop = false;
+            }
+
+            //  Initialize
+
             if (typeof container !== 'undefined') {
 				if(typeof container === 'string') {
 					container = $(container);
@@ -19,10 +47,10 @@
             }
         },
 		
-		attachElements: function() {
-			var sn = window.statenav;
+		attachElements: function(e) {
+		    var elements = e || $("a.statenav,a.pjax");
 
-            $("a.statenav,a.pjax").each(function() {
+		    elements.each(function () {
                 var e = $(this);
                 if (e.data("statenav"))
                     return;
@@ -38,12 +66,19 @@
 		},
 
 		nav: function (link, push) {
-            if (push) {
-                history.pushState(link, "", link);
+
+		    window.statenav.args = {
+		        link: link,
+		        push: push
+		    };
+
+            if (!initialPop && window.statenav.xhr) {
+                window.statenav.xhr.abort();
+                window.statenav.xhr = null;
             }
 
             window.statenav.container.trigger("sn-start-load");
-            $.ajax({
+		    window.statenav.xhr = $.ajax({
                 url: link,
                 dataType: "html",
                 method: "GET",
@@ -56,7 +91,10 @@
             }).done(function (data) {
                 window.statenav.container.html(data);
                 window.statenav.container.trigger("sn-finish-load", [{ success: true }]);
-				window.statenav.attachElements();
+                window.statenav.attachElements();
+                if (window.statenav.args.push) {
+                    history.pushState(window.statenav.args.link, "", window.statenav.args.link);
+                }
             }).fail(function (a, b, c) {
                 alert("Error de conexión con el servidor.");
                 console.log([a, b, c]);
@@ -66,8 +104,16 @@
     };
 
     window.onpopstate = function (event) {
-        console.log("location: " + document.location + ", state: " + JSON.stringify(event.state));
-        window.statenav.nav(document.location);
+        //var previousState = window.statenav.state;
+        var state = event.state;
+
+        if (state) {
+            window.statenav.nav(document.location);
+        } else {
+            console.log("Nav. Cancelado");
+        }
+
+        initialPop = false;
     };
 
     if (typeof $ !== 'undefined') {
